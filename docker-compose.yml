@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: vtbhack_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vtbhack_db
+      POSTGRES_USER: vtbhack_user
+      POSTGRES_PASSWORD: vtbhack_password123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - vtbhack_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vtbhack_user -d vtbhack_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis для кэширования (опционально)
+  redis:
+    image: redis:7-alpine
+    container_name: vtbhack_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - vtbhack_network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Adminer для управления БД (опционально)
+  adminer:
+    image: adminer:latest
+    container_name: vtbhack_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - vtbhack_network
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha-dark
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  vtbhack_network:
+    driver: bridge

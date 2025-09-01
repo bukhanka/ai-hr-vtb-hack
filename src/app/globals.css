@@ -1,8 +1,53 @@
 @import "tailwindcss";
 
 :root {
+  /* Light theme colors */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1a1a1a;
+  --card-background: #ffffff;
+  --border: #e5e7eb;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  
+  /* VTB Brand Colors - Light Theme */
+  --vtb-primary: #0056b3;
+  --vtb-primary-hover: #004494;
+  --vtb-secondary: #00a3e0;
+  --vtb-secondary-hover: #0084b8;
+  --vtb-accent: #7c3aed;
+  --vtb-accent-hover: #6d28d9;
+  --vtb-surface: #ffffff;
+  --vtb-surface-secondary: #f8fafc;
+  --vtb-text: #1a1a1a;
+  --vtb-text-secondary: #64748b;
+  --vtb-success: #10b981;
+  --vtb-warning: #f59e0b;
+  --vtb-error: #ef4444;
+}
+
+[data-theme="dark"] {
+  /* Dark theme colors */
+  --background: #0a0a0a;
+  --foreground: #ffffff;
+  --card-background: #1a1a1a;
+  --border: #374151;
+  --muted: #1f2937;
+  --muted-foreground: #9ca3af;
+  
+  /* VTB Brand Colors - Dark Theme */
+  --vtb-primary: #0ea5e9;
+  --vtb-primary-hover: #0284c7;
+  --vtb-secondary: #8b5cf6;
+  --vtb-secondary-hover: #7c3aed;
+  --vtb-accent: #a855f7;
+  --vtb-accent-hover: #9333ea;
+  --vtb-surface: #1a1a1a;
+  --vtb-surface-secondary: #111827;
+  --vtb-text: #ffffff;
+  --vtb-text-secondary: #cbd5e1;
+  --vtb-success: #22c55e;
+  --vtb-warning: #fbbf24;
+  --vtb-error: #f87171;
 }
 
 @theme inline {
@@ -11,29 +56,39 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   
-  /* ВТБ цвета */
-  --color-vtb-primary: #0056B3;
-  --color-vtb-primary-light: #0071E3;
-  --color-vtb-primary-dark: #003D80;
-  --color-vtb-secondary: #F0F7FF;
-  --color-vtb-accent: #00A3E0;
-  --color-vtb-gray: #6B7280;
-  --color-vtb-light-gray: #F8F9FA;
-  --color-vtb-dark-gray: #374151;
-  --color-vtb-success: #059669;
-  --color-vtb-warning: #F59E0B;
-  --color-vtb-error: #DC2626;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Theme-aware colors */
+  --color-vtb-primary: var(--vtb-primary);
+  --color-vtb-primary-hover: var(--vtb-primary-hover);
+  --color-vtb-secondary: var(--vtb-secondary);
+  --color-vtb-secondary-hover: var(--vtb-secondary-hover);
+  --color-vtb-accent: var(--vtb-accent);
+  --color-vtb-accent-hover: var(--vtb-accent-hover);
+  --color-vtb-surface: var(--vtb-surface);
+  --color-vtb-surface-secondary: var(--vtb-surface-secondary);
+  --color-vtb-text: var(--vtb-text);
+  --color-vtb-text-secondary: var(--vtb-text-secondary);
+  --color-vtb-success: var(--vtb-success);
+  --color-vtb-warning: var(--vtb-warning);
+  --color-vtb-error: var(--vtb-error);
+  --color-border: var(--border);
+  --color-card: var(--card-background);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Gradient backgrounds for dark theme */
+[data-theme="dark"] {
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
