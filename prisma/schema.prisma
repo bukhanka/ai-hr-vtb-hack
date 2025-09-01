@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Перечисления
+enum UserRole {
+  HR
+  APPLICANT
+  ADMIN
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum JobStatus {
+  ACTIVE
+  CLOSED
+  DRAFT
+}
+
+// Модели
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  firstName   String
+  lastName    String
+  phone       String?
+  role        UserRole @default(APPLICANT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Связи
+  createdJobs Job[]         @relation("JobCreator")
+  interviews  Interview[]
+  assessments Assessment[]
+  resumes     Resume[]
+
+  @@map("users")
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  requirements String
+  skills      String[]
+  experience  String?
+  salary      String?
+  status      JobStatus @default(DRAFT)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Связи
+  creatorId   String
+  creator     User        @relation("JobCreator", fields: [creatorId], references: [id])
+  interviews  Interview[]
+
+  @@map("jobs")
+}
+
+model Resume {
+  id          String   @id @default(cuid())
+  fileName    String
+  filePath    String
+  content     String?
+  skills      String[]
+  experience  Int?     // в годах
+  education   String?
+  uploadedAt  DateTime @default(now())
+
+  // Связи
+  applicantId String
+  applicant   User   @relation(fields: [applicantId], references: [id])
+
+  @@map("resumes")
+}
+
+model Interview {
+  id          String          @id @default(cuid())
+  status      InterviewStatus @default(SCHEDULED)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  transcript  String?
+  aiNotes     String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Связи
+  jobId       String
+  job         Job          @relation(fields: [jobId], references: [id])
+  applicantId String
+  applicant   User         @relation(fields: [applicantId], references: [id])
+  assessment  Assessment?
+
+  @@map("interviews")
+}
+
+model Assessment {
+  id              String   @id @default(cuid())
+  overallScore    Float    // процент соответствия позиции
+  technicalScore  Float?
+  softSkillsScore Float?
+  communicationScore Float?
+  recommendation  String   // "HIRE", "REJECT", "REQUIRES_CLARIFICATION"
+  feedback        String?  // обратная связь для кандидата
+  strengths       String[] // сильные стороны
+  weaknesses      String[] // слабые места
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  // Связи
+  interviewId String    @unique
+  interview   Interview @relation(fields: [interviewId], references: [id])
+  assessorId  String    // кто проводил оценку (AI или HR)
+  assessor    User      @relation(fields: [assessorId], references: [id])
+
+  @@map("assessments")
+}
