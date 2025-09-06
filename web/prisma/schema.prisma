@@ -76,11 +76,26 @@ model Resume {
   id          String   @id @default(cuid())
   fileName    String
   filePath    String
-  content     String?
+  
+  // Сырые данные
+  rawContent  String?  // Исходный текст из файла
+  content     String?  // Контент введенный вручную
+  
+  // Структурированные данные от AI
+  parsedData  Json?    // Результат AI парсинга
+  
+  // Основные поля (совместимость)
   skills      String[]
   experience  Int?     // в годах
   education   String?
+  
+  // AI анализ
+  aiSummary      String?   // Краткое резюме от AI
+  matchScore     Float?    // Общий скор профиля
+  processingStatus String @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  
   uploadedAt  DateTime @default(now())
+  analyzedAt  DateTime? // Когда был проведен AI анализ
 
   // Связи
   applicantId String

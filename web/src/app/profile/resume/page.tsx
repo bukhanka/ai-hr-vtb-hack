@@ -2,28 +2,40 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ThemeToggle } from '../../../components/ThemeToggle';
-import { BuildingIcon, DocumentIcon, PlusIcon, EditIcon, TrashIcon, UploadIcon } from '../../../components/Icons';
+import { useAuth } from '../../../hooks/useAuth';
+import { UserRole } from '../../../generated/prisma';
+import { DocumentIcon, PlusIcon, EditIcon, TrashIcon, UploadIcon } from '../../../components/Icons';
+import { EnhancedResumeView } from '../../../components/EnhancedResumeView';
+import { ResumePreview } from '../../../components/ResumePreview';
+import { ResumeModal } from '../../../components/ResumeModal';
 import Link from 'next/link';
 
 interface Resume {
   id: string;
   fileName: string;
   content?: string;
+  rawContent?: string;
   skills: string[];
   experience?: number;
   education?: string;
   uploadedAt: string;
+  parsedData?: any;
+  aiSummary?: string;
+  matchScore?: number;
+  processingStatus?: string;
+  analyzedAt?: string;
 }
 
 export default function ResumeProfilePage() {
+  const { user, loading: authLoading, isApplicant } = useAuth();
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<any>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingResume, setEditingResume] = useState<Resume | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selectedResumeForView, setSelectedResumeForView] = useState<Resume | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -37,84 +49,115 @@ export default function ResumeProfilePage() {
 
   const router = useRouter();
 
-  // Загрузка пользователя
+  // Защита роута - только для соискателей
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('auth-token');
-        if (!token) {
-          router.push('/login');
-          return;
-        }
+    if (!authLoading && user && !isApplicant()) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, isApplicant, router]);
 
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+  // Функция загрузки резюме
+  const fetchResumes = async () => {
+    try {
+      const token = localStorage.getItem('auth-token');
+      
+      const response = await fetch('/api/resume/my', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-        if (!response.ok) {
-          throw new Error('Не удалось получить данные пользователя');
-        }
-
-        const data = await response.json();
-        if (data.user.role !== 'APPLICANT') {
-          router.push('/dashboard');
-          return;
-        }
-        setUser(data.user);
-      } catch (error) {
-        console.error('Ошибка загрузки пользователя:', error);
-        localStorage.removeItem('auth-token');
-        router.push('/login');
+      if (!response.ok) {
+        throw new Error('Ошибка при загрузке резюме');
       }
-    };
 
-    fetchUser();
-  }, [router]);
+      const data = await response.json();
+      setResumes(data.resumes);
+      return data.resumes;
+    } catch (error) {
+      console.error('Ошибка загрузки резюме:', error);
+      setError('Не удалось загрузить резюме');
+      return null;
+    }
+  };
 
   // Загрузка резюме
   useEffect(() => {
-    const fetchResumes = async () => {
-      try {
+    const loadResumes = async () => {
+      if (user) {
         setLoading(true);
-        const token = localStorage.getItem('auth-token');
-        
-        const response = await fetch('/api/resume/my', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Ошибка при загрузке резюме');
-        }
-
-        const data = await response.json();
-        setResumes(data.resumes);
-      } catch (error) {
-        console.error('Ошибка загрузки резюме:', error);
-        setError('Не удалось загрузить резюме');
-      } finally {
+        await fetchResumes();
         setLoading(false);
       }
     };
 
-    if (user) {
-      fetchResumes();
-    }
+    loadResumes();
   }, [user]);
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch (error) {
-      console.error('Ошибка при выходе:', error);
-    } finally {
-      localStorage.removeItem('auth-token');
-      router.push('/');
+  // Автоматическое обновление статуса резюме (polling)
+  useEffect(() => {
+    if (!user || resumes.length === 0) return;
+
+    // Проверяем есть ли резюме в процессе обработки
+    const hasProcessingResumes = resumes.some(resume => 
+      resume.processingStatus === 'PENDING' || resume.processingStatus === 'PROCESSING'
+    );
+
+    if (!hasProcessingResumes) return;
+
+    console.log('Запускаем автоматическое обновление статуса резюме...');
+
+    const interval = setInterval(async () => {
+      console.log('Проверяем статус обработки резюме...');
+      const updatedResumes = await fetchResumes();
+      
+      if (updatedResumes) {
+        // Проверяем какие резюме завершились
+        const previousProcessing = resumes.filter(resume => 
+          resume.processingStatus === 'PENDING' || resume.processingStatus === 'PROCESSING'
+        );
+        
+        const nowCompleted = updatedResumes.filter(resume => 
+          resume.processingStatus === 'COMPLETED' && 
+          previousProcessing.some(prev => prev.id === resume.id)
+        );
+
+        // Показываем уведомление о завершении
+        if (nowCompleted.length > 0) {
+          const completedNames = nowCompleted.map(r => r.fileName).join(', ');
+          setNotification(`✅ AI анализ завершен: ${completedNames}`);
+          
+          // Убираем уведомление через 5 секунд
+          setTimeout(() => setNotification(null), 5000);
+        }
+
+        // Проверяем есть ли еще обрабатывающиеся резюме
+        const stillProcessing = updatedResumes.some(resume => 
+          resume.processingStatus === 'PENDING' || resume.processingStatus === 'PROCESSING'
+        );
+
+        // Если больше нет обрабатывающихся резюме, останавливаем polling
+        if (!stillProcessing) {
+          console.log('Все резюме обработаны, останавливаем автоматическое обновление');
+          clearInterval(interval);
+        }
+      }
+    }, 3000); // Проверяем каждые 3 секунды
+
+    // Очищаем интервал при размонтировании или изменении зависимостей
+    return () => {
+      console.log('Останавливаем автоматическое обновление статуса резюме');
+      clearInterval(interval);
+    };
+  }, [user, resumes]);
+
+  // Автоматически скрываем уведомление
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [notification]);
 
   const handleAddSkill = () => {
     const skill = formData.skillInput.trim();
@@ -176,9 +219,12 @@ export default function ResumeProfilePage() {
         }
 
         const data = await response.json();
-        setResumes(prev => prev.map(resume => 
-          resume.id === editingResume.id ? data.resume : resume
-        ));
+        
+        // Перезагружаем весь список резюме чтобы получить актуальные данные
+        await fetchResumes();
+        
+        // Показываем уведомление об обновлении
+        setNotification('✅ Резюме успешно обновлено!');
       } else {
         // Создание нового резюме
         const formDataToSend = new FormData();
@@ -215,7 +261,16 @@ export default function ResumeProfilePage() {
         }
 
         const data = await response.json();
-        setResumes(prev => [data.resume, ...prev]);
+        
+        // Перезагружаем весь список резюме чтобы получить актуальные данные
+        await fetchResumes();
+        
+        // Показываем уведомление о загрузке
+        if (data.aiAnalysis) {
+          setNotification('🔄 Резюме загружено! AI анализ запущен...');
+        } else {
+          setNotification('✅ Резюме успешно сохранено!');
+        }
       }
 
       resetForm();
@@ -259,7 +314,11 @@ export default function ResumeProfilePage() {
         throw new Error(data.error || 'Ошибка при удалении резюме');
       }
 
-      setResumes(prev => prev.filter(resume => resume.id !== resumeId));
+      // Перезагружаем список резюме
+      await fetchResumes();
+      
+      // Показываем уведомление об удалении
+      setNotification('✅ Резюме успешно удалено!');
     } catch (error) {
       console.error('Ошибка при удалении резюме:', error);
       setError(error instanceof Error ? error.message : 'Не удалось удалить резюме');
@@ -274,7 +333,7 @@ export default function ResumeProfilePage() {
     });
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -285,62 +344,38 @@ export default function ResumeProfilePage() {
     );
   }
 
+  // Если пользователь не загружен или не является соискателем, не показываем страницу
+  if (!user || !isApplicant()) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-vtb-surface border-b border-border backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 bg-gradient-to-br from-vtb-primary to-vtb-secondary rounded-lg flex items-center justify-center shadow-lg">
-                <BuildingIcon className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-vtb-text">
-                  Мои резюме
-                </h1>
-                <p className="text-xs text-vtb-text-secondary">
-                  {resumes.length} резюме
-                </p>
-              </div>
+      {/* Notification */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-50 bg-vtb-surface dark:bg-gray-800 border border-border dark:border-gray-600 rounded-lg shadow-lg p-4 max-w-sm">
+          <div className="flex items-start gap-3">
+            <div className="text-lg">
+              {notification.includes('✅') ? '✅' : 
+               notification.includes('🔄') ? '🔄' : 
+               notification.includes('❌') ? '❌' : 'ℹ️'}
             </div>
-            <nav className="flex items-center space-x-3">
-              <ThemeToggle />
-              {user && (
-                <>
-                  <span className="text-sm text-vtb-text-secondary">
-                    {user.firstName} {user.lastName}
-                  </span>
-                  <Link
-                    href="/jobs"
-                    className="px-4 py-2 text-sm font-medium text-vtb-text-secondary hover:text-vtb-primary transition-colors"
-                  >
-                    Вакансии
-                  </Link>
-                  <Link
-                    href="/my-applications"
-                    className="px-4 py-2 text-sm font-medium text-vtb-text-secondary hover:text-vtb-primary transition-colors"
-                  >
-                    Мои заявки
-                  </Link>
-                  <button
-                    onClick={() => router.push('/dashboard')}
-                    className="px-4 py-2 text-sm font-medium text-vtb-text-secondary hover:text-vtb-primary transition-colors"
-                  >
-                    Профиль
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="px-6 py-2.5 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white text-sm font-medium rounded-xl hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                  >
-                    Выйти
-                  </button>
-                </>
-              )}
-            </nav>
+            <div className="flex-1">
+              <p className="text-sm text-vtb-text dark:text-white">
+                {notification.replace(/^[✅🔄❌ℹ️]\s*/, '')}
+              </p>
+            </div>
+            <button
+              onClick={() => setNotification(null)}
+              className="text-vtb-text-secondary dark:text-gray-400 hover:text-vtb-text dark:hover:text-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
-      </header>
+      )}
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -401,7 +436,7 @@ export default function ResumeProfilePage() {
                   <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-vtb-primary/50 transition-colors">
                     <input
                       type="file"
-                      accept=".pdf,.doc,.docx,.txt"
+                      accept=".pdf,.doc,.docx,.rtf,.txt,.html,.md,.jpg,.jpeg,.png,.webp"
                       onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                       className="hidden"
                       id="file-upload"
@@ -416,7 +451,7 @@ export default function ResumeProfilePage() {
                           Выберите файл резюме
                         </p>
                         <p className="text-sm text-vtb-text-secondary">
-                          Поддерживаются PDF, DOC, DOCX, TXT (максимум 5MB)
+                          Поддерживаются PDF, DOC, DOCX, RTF, TXT, HTML, MD, JPG, PNG (максимум 20MB)
                         </p>
                       </div>
                     </label>
@@ -568,90 +603,24 @@ export default function ResumeProfilePage() {
         ) : (
           <div className="space-y-6">
             {resumes.map((resume) => (
-              <div key={resume.id} className="bg-vtb-surface rounded-2xl p-6 shadow-lg border border-border">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-                  <div className="flex-1">
-                    <div className="flex items-start gap-4 mb-4">
-                      <div className="h-12 w-12 bg-vtb-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <DocumentIcon className="w-6 h-6 text-vtb-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-vtb-text mb-1">
-                          {resume.fileName}
-                        </h3>
-                        <p className="text-sm text-vtb-text-secondary">
-                          Загружено: {formatDate(resume.uploadedAt)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Skills */}
-                    {resume.skills.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-vtb-text mb-2">Навыки:</h4>
-                        <div className="flex flex-wrap gap-2">
-                          {resume.skills.map((skill, index) => (
-                            <span
-                              key={index}
-                              className="px-2 py-1 bg-vtb-primary/10 text-vtb-primary text-xs rounded-full"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Experience and Education */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                      {resume.experience !== undefined && resume.experience !== null && (
-                        <div>
-                          <span className="font-medium text-vtb-text">Опыт: </span>
-                          <span className="text-vtb-text-secondary">
-                            {resume.experience} {resume.experience === 1 ? 'год' : resume.experience < 5 ? 'года' : 'лет'}
-                          </span>
-                        </div>
-                      )}
-                      {resume.education && (
-                        <div>
-                          <span className="font-medium text-vtb-text">Образование: </span>
-                          <span className="text-vtb-text-secondary">{resume.education}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content Preview */}
-                    {resume.content && (
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                        <h4 className="text-sm font-medium text-vtb-text mb-2">Содержание:</h4>
-                        <p className="text-sm text-vtb-text-secondary line-clamp-3">
-                          {resume.content}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleEdit(resume)}
-                      className="p-2 bg-vtb-primary/10 text-vtb-primary rounded-lg hover:bg-vtb-primary/20 transition-colors"
-                      title="Редактировать"
-                    >
-                      <EditIcon className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(resume.id)}
-                      className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                      title="Удалить"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ResumePreview
+                key={resume.id}
+                resume={resume}
+                onViewFull={() => setSelectedResumeForView(resume)}
+                onEdit={() => handleEdit(resume)}
+                onDelete={() => handleDelete(resume.id)}
+              />
             ))}
           </div>
+        )}
+
+        {/* Resume Modal */}
+        {selectedResumeForView && (
+          <ResumeModal
+            resume={selectedResumeForView}
+            isOpen={!!selectedResumeForView}
+            onClose={() => setSelectedResumeForView(null)}
+          />
         )}
       </main>
     </div>

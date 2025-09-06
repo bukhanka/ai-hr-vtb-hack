@@ -42,10 +42,17 @@ export async function GET(request: NextRequest) {
         id: true,
         fileName: true,
         content: true,
+        rawContent: true,
         skills: true,
         experience: true,
         education: true,
         uploadedAt: true,
+        // AI анализ поля
+        parsedData: true,
+        aiSummary: true,
+        matchScore: true,
+        processingStatus: true,
+        analyzedAt: true,
       }
     });
 

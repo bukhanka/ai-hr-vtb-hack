@@ -34,6 +34,36 @@ export const BrainIcon = ({ className = "w-6 h-6", size }: IconProps) => (
   </svg>
 )
 
+export const EyeIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+)
+
+export const XMarkIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path d="M18 6L6 18"/>
+    <path d="M6 6l12 12"/>
+  </svg>
+)
+
 export const BarChartIcon = ({ className = "w-6 h-6", size }: IconProps) => (
   <svg 
     className={className} 
@@ -311,5 +341,128 @@ export const LogInIcon = ({ className = "w-6 h-6", size }: IconProps) => (
     <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
     <polyline points="10,17 15,12 10,7"/>
     <line x1="15" x2="3" y1="12" y2="12"/>
+  </svg>
+)
+
+export const LogoutIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+    <polyline points="16,17 21,12 16,7"/>
+    <line x1="21" x2="9" y1="12" y2="12"/>
+  </svg>
+)
+
+export const ChevronLeftIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <polyline points="15,18 9,12 15,6"/>
+  </svg>
+)
+
+export const BriefcaseIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+  </svg>
+)
+
+export const AcademicCapIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+    <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+  </svg>
+)
+
+export const CodeIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <polyline points="16,18 22,12 16,6"/>
+    <polyline points="8,6 2,12 8,18"/>
+  </svg>
+)
+
+export const TrophyIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+    <path d="M4 22h16"/>
+    <path d="M10 14.66V17c0 .55.47.98.97 1.21C12.04 18.75 13 19.24 14 19.24c1 0 1.96-.49 2.03-1.03.03-.23.97-.66.97-1.21v-2.34c0-2.06-1.57-3.74-3.5-3.97L12 10l-1.5.69C8.57 10.92 7 12.6 7 14.66z"/>
+  </svg>
+)
+
+export const GlobeIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <circle cx="12" cy="12" r="10"/>
+    <path d="m2 12 c 0 0 2 -8 10 -8 s 10 8 10 8"/>
+    <path d="m2 12 c 0 0 2 8 10 8 s 10 -8 10 -8"/>
+    <path d="M12 2v20"/>
+  </svg>
+)
+
+export const CheckIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <polyline points="20,6 9,17 4,12"/>
   </svg>
 )

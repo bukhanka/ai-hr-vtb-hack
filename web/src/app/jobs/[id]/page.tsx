@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ThemeToggle } from '../../../components/ThemeToggle';
 import { BuildingIcon, ClockIcon, UserIcon, SparklesIcon } from '../../../components/Icons';
+import { ThemeToggle } from '../../../components/ThemeToggle';
 import Link from 'next/link';
 
 interface Job {

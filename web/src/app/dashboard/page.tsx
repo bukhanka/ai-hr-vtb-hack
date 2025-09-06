@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../hooks/useAuth';
+import { UserRole } from '../../generated/prisma';
 import { 
   BuildingIcon, 
   UserIcon, 
@@ -19,67 +19,16 @@ import {
   EditIcon
 } from '@/components/Icons';
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  createdAt: string;
-  phone?: string;
-}
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, isAdmin, isHR, isApplicant } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('auth-token');
-        
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Не удалось получить данные пользователя');
-        }
-
-        const data = await response.json();
-        setUser(data.user);
-      } catch (error) {
-        console.error('Ошибка загрузки пользователя:', error);
-        localStorage.removeItem('auth-token');
-        router.push('/login');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUser();
-  }, [router]);
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.error('Ошибка при выходе:', error);
-    } finally {
-      localStorage.removeItem('auth-token');
-      router.push('/login');
-    }
-  };
+  // Редирект если не авторизован
+  if (!loading && !user) {
+    router.push('/login');
+    return null;
+  }
 
   if (loading) {
     return (
@@ -99,39 +48,39 @@ export default function DashboardPage() {
     return null; // Будет перенаправлен на login
   }
 
-  const getRoleLabel = (role: string) => {
+  const getRoleLabel = (role: UserRole) => {
     switch (role) {
-      case 'ADMIN':
+      case UserRole.ADMIN:
         return 'Администратор';
-      case 'HR':
+      case UserRole.HR:
         return 'HR-специалист';
-      case 'APPLICANT':
+      case UserRole.APPLICANT:
         return 'Соискатель';
       default:
         return role;
     }
   };
 
-  const getRoleColor = (role: string) => {
+  const getRoleColor = (role: UserRole) => {
     switch (role) {
-      case 'ADMIN':
+      case UserRole.ADMIN:
         return 'bg-gradient-to-r from-red-500 to-red-600 text-white';
-      case 'HR':
+      case UserRole.HR:
         return 'bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white';
-      case 'APPLICANT':
+      case UserRole.APPLICANT:
         return 'bg-gradient-to-r from-green-500 to-green-600 text-white';
       default:
         return 'bg-vtb-surface text-vtb-text border border-border';
     }
   };
 
-  const getRoleIcon = (role: string) => {
+  const getRoleIcon = (role: UserRole) => {
     switch (role) {
-      case 'ADMIN':
+      case UserRole.ADMIN:
         return SparklesIcon;
-      case 'HR':
+      case UserRole.HR:
         return TargetIcon;
-      case 'APPLICANT':
+      case UserRole.APPLICANT:
         return UserIcon;
       default:
         return UserIcon;
@@ -142,42 +91,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="bg-vtb-surface border-b border-border backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 bg-gradient-to-br from-vtb-primary to-vtb-secondary rounded-lg flex items-center justify-center shadow-lg">
-                <BuildingIcon className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-vtb-text">HR-Аватар ВТБ</h1>
-                <p className="text-xs text-vtb-text-secondary">Панель управления</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="hidden sm:flex items-center space-x-3 text-sm">
-                <RoleIcon className="w-4 h-4 text-vtb-text-secondary" />
-                <span className="text-vtb-text font-medium">
-                  {user.firstName} {user.lastName}
-                </span>
-              </div>
-              <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm ${getRoleColor(user.role)}`}>
-                <RoleIcon className="w-3 h-3" />
-                <span>{getRoleLabel(user.role)}</span>
-              </div>
-              <ThemeToggle />
-              <button
-                onClick={handleLogout}
-                className="px-3 py-2 text-sm font-medium text-vtb-text-secondary hover:text-vtb-primary transition-colors rounded-lg hover:bg-muted"
-              >
-                Выйти
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       {/* Main Content */}
       <div className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
         <div className="px-4 sm:px-0">

@@ -135,11 +135,6 @@ export async function POST(request: NextRequest) {
           }
         },
         applicant: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
           include: {
             resumes: {
               take: 1,

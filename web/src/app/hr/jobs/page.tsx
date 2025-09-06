@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { JobCard } from '../../../components/JobCard';
 import { JobSearch, JobFilters } from '../../../components/JobSearch';
-import { ThemeToggle } from '../../../components/ThemeToggle';
 import { BuildingIcon, PlusIcon, BarChartIcon } from '../../../components/Icons';
 import Link from 'next/link';
 
@@ -205,49 +204,6 @@ export default function HRJobsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-vtb-surface border-b border-border backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <div className="h-10 w-10 bg-gradient-to-br from-vtb-primary to-vtb-secondary rounded-lg flex items-center justify-center shadow-lg">
-                <BuildingIcon className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-vtb-text">
-                  Управление вакансиями
-                </h1>
-                <p className="text-xs text-vtb-text-secondary">
-                  HR-панель ВТБ
-                </p>
-              </div>
-            </div>
-            <nav className="flex items-center space-x-3">
-              <ThemeToggle />
-              {user && (
-                <>
-                  <span className="text-sm text-vtb-text-secondary">
-                    {user.firstName} {user.lastName}
-                  </span>
-                  <button
-                    onClick={() => router.push('/dashboard')}
-                    className="px-4 py-2 text-sm font-medium text-vtb-text-secondary hover:text-vtb-primary transition-colors"
-                  >
-                    Профиль
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="px-6 py-2.5 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white text-sm font-medium rounded-xl hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                  >
-                    Выйти
-                  </button>
-                </>
-              )}
-            </nav>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Statistics Cards */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { getTokenFromRequest, verifyToken, isApplicant } from '../../../../lib/auth';
+import { UniversalResumeParser } from '../../../../lib/ai-resume-parser';
 
 // POST /api/resume/upload - Загрузка резюме
 export async function POST(request: NextRequest) {
@@ -50,26 +51,23 @@ export async function POST(request: NextRequest) {
     let filePath = '/mock/resume/path';
     
     if (file) {
-      // Валидация типа файла
-      const allowedTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain'
-      ];
+      // Создаем парсер для проверки поддерживаемых форматов
+      const parser = new UniversalResumeParser();
       
-      if (!allowedTypes.includes(file.type)) {
+      // Валидация типа файла с расширенной поддержкой
+      if (!parser.isFormatSupported(file.type)) {
+        const supportedFormats = parser.getSupportedFormats();
         return NextResponse.json(
-          { error: 'Поддерживаются только PDF, DOC, DOCX и TXT файлы' },
+          { error: `Неподдерживаемый формат файла: ${file.type}. Поддерживаются: ${supportedFormats.join(', ')}` },
           { status: 400 }
         );
       }
 
-      // Валидация размера файла (максимум 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB
+      // Валидация размера файла (максимум 20MB для AI обработки)
+      const maxSize = 20 * 1024 * 1024; // 20MB
       if (file.size > maxSize) {
         return NextResponse.json(
-          { error: 'Размер файла не должен превышать 5MB' },
+          { error: 'Размер файла не должен превышать 20MB' },
           { status: 400 }
         );
       }
@@ -96,6 +94,7 @@ export async function POST(request: NextRequest) {
         experience: experienceYears,
         education: education.trim() || null,
         applicantId: payload.userId,
+        processingStatus: file ? 'PENDING' : 'COMPLETED', // Если файл загружен, будет AI анализ
       },
       select: {
         id: true,
@@ -104,12 +103,36 @@ export async function POST(request: NextRequest) {
         experience: true,
         education: true,
         uploadedAt: true,
+        processingStatus: true,
       }
     });
+
+    // Если загружен файл, запускаем фоновый AI анализ
+    let aiAnalysisPromise = null;
+    if (file) {
+      console.log(`Запускаем фоновый AI анализ для резюме ${resume.id}`);
+      
+      // Запускаем AI анализ асинхронно, не блокируя ответ
+      aiAnalysisPromise = performBackgroundAIAnalysis(resume.id, file, payload.userId)
+        .catch(error => {
+          console.error(`Фоновый AI анализ не удался для резюме ${resume.id}:`, error);
+          // Обновляем статус на FAILED
+          prisma.resume.update({
+            where: { id: resume.id },
+            data: { processingStatus: 'FAILED' }
+          }).catch(updateError => {
+            console.error('Не удалось обновить статус резюме:', updateError);
+          });
+        });
+    }
 
     return NextResponse.json({
       message: 'Резюме успешно загружено',
       resume: resume,
+      aiAnalysis: file ? {
+        status: 'PENDING',
+        message: 'AI анализ запущен в фоновом режиме. Результаты будут доступны через несколько минут.'
+      } : null
     }, { status: 201 });
   } catch (error) {
     console.error('Resume upload error:', error);
@@ -117,5 +140,80 @@ export async function POST(request: NextRequest) {
       { error: 'Ошибка при загрузке резюме' },
       { status: 500 }
     );
+  }
+}
+
+// Функция для фонового AI анализа резюме
+async function performBackgroundAIAnalysis(resumeId: string, file: File, userId: string): Promise<void> {
+  try {
+    console.log(`Начинаем фоновый AI анализ резюме ${resumeId}`);
+    
+    // Обновляем статус на "обрабатывается"
+    await prisma.resume.update({
+      where: { id: resumeId },
+      data: { processingStatus: 'PROCESSING' }
+    });
+
+    // Создаем парсер и анализируем резюме
+    const parser = new UniversalResumeParser();
+    const parsedData = await parser.parseResume(file);
+
+    // Извлекаем основные поля для совместимости
+    const allSkills = [
+      ...parsedData.skills.technical,
+      ...parsedData.skills.soft,
+      ...parsedData.skills.tools,
+      ...parsedData.skills.frameworks,
+      ...parsedData.skills.databases
+    ];
+
+    const uniqueSkills = Array.from(new Set(allSkills)).filter(skill => skill.trim().length > 0);
+    const totalExperience = parsedData.totalExperienceYears || 0;
+    const education = parsedData.education.length > 0 
+      ? `${parsedData.education[0].degree} в ${parsedData.education[0].institution}`
+      : null;
+
+    // Рассчитываем общий скор профиля
+    let matchScore = 0;
+    matchScore += parsedData.personalInfo.name ? 10 : 0;
+    matchScore += parsedData.summary ? 15 : 0;
+    matchScore += uniqueSkills.length > 0 ? 20 : 0;
+    matchScore += parsedData.workExperience.length > 0 ? 25 : 0;
+    matchScore += parsedData.education.length > 0 ? 15 : 0;
+    matchScore += parsedData.projects.length > 0 ? 10 : 0;
+    matchScore += parsedData.certifications.length > 0 ? 5 : 0;
+
+    console.log(`AI анализ завершен для резюме ${resumeId}. Скор: ${matchScore}%`);
+
+    // Обновляем резюме с результатами анализа
+    await prisma.resume.update({
+      where: { id: resumeId },
+      data: {
+        rawContent: `Файл: ${file.name} (${file.type})`,
+        parsedData: parsedData as any,
+        skills: uniqueSkills,
+        experience: totalExperience,
+        education: education,
+        aiSummary: parsedData.summary,
+        matchScore: matchScore,
+        processingStatus: 'COMPLETED',
+        analyzedAt: new Date()
+      }
+    });
+
+    console.log(`Фоновый AI анализ успешно завершен для резюме ${resumeId}`);
+
+  } catch (error) {
+    console.error(`Ошибка фонового AI анализа для резюме ${resumeId}:`, error);
+    
+    // Обновляем статус на "ошибка"
+    await prisma.resume.update({
+      where: { id: resumeId },
+      data: { processingStatus: 'FAILED' }
+    }).catch(updateError => {
+      console.error('Не удалось обновить статус резюме после ошибки:', updateError);
+    });
+    
+    throw error;
   }
 }
