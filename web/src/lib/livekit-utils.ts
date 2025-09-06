@@ -20,6 +20,10 @@ export interface ConnectionDetails {
   participantName: string;
 }
 
+export interface InterviewConnectionDetails extends ConnectionDetails {
+  agentInstructions?: string; // Для отладки
+}
+
 export async function getConnectionDetails(
   roomName: string,
   participantName: string
@@ -54,6 +58,45 @@ export async function getConnectionDetails(
     roomName,
     identity: data.identity,
     participantName,
+  };
+}
+
+export async function getInterviewConnectionDetails(
+  interviewId: string,
+  participantName: string
+): Promise<InterviewConnectionDetails> {
+  console.log('Отправляем запрос на получение токена для интервью...');
+  
+  const response = await fetch('/api/livekit/interview-token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('auth-token')}`,
+    },
+    body: JSON.stringify({
+      interviewId,
+      participantName,
+    }),
+  });
+
+  console.log('Ответ от Interview API:', response.status, response.statusText);
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('Ошибка от Interview API:', error);
+    throw new Error(error.error || 'Не удалось получить токен для интервью');
+  }
+
+  const data = await response.json();
+  console.log('Данные от Interview API:', data);
+  
+  return {
+    wsUrl: data.wsUrl,
+    token: data.token,
+    roomName: data.roomName,
+    identity: data.identity,
+    participantName,
+    agentInstructions: data.agentInstructions,
   };
 }
 

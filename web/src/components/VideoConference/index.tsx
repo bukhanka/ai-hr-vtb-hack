@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { LocalUserChoices } from '@livekit/components-react';
 import { PreJoin } from './PreJoin';
 import { VideoConferenceRoom } from './VideoConferenceRoom';
-import { ConnectionDetails, getConnectionDetails, generateRoomId } from '../../lib/livekit-utils';
+import { ConnectionDetails, InterviewConnectionDetails, getConnectionDetails, getInterviewConnectionDetails, generateRoomId } from '../../lib/livekit-utils';
 
 interface VideoConferenceProps {
   participantName: string;
@@ -16,7 +16,7 @@ type ConferenceState = 'pre-join' | 'connecting' | 'connected' | 'disconnected';
 
 export function VideoConference({ participantName, interviewId, onClose }: VideoConferenceProps) {
   const [state, setState] = useState<ConferenceState>('pre-join');
-  const [connectionDetails, setConnectionDetails] = useState<ConnectionDetails | null>(null);
+  const [connectionDetails, setConnectionDetails] = useState<InterviewConnectionDetails | null>(null);
   const [userChoices, setUserChoices] = useState<LocalUserChoices | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,23 +24,24 @@ export function VideoConference({ participantName, interviewId, onClose }: Video
 
   const handleJoin = async (choices: LocalUserChoices) => {
     try {
-      console.log('Начинаем подключение к видеоконференции...');
+      console.log('Начинаем подключение к интервью...');
       setState('connecting');
       setUserChoices(choices);
       
-      // Генерируем уникальное имя комнаты на основе ID интервью
-      const roomName = `interview-${interviewId}`;
-      console.log('Имя комнаты:', roomName);
+      console.log('ID интервью:', interviewId);
       console.log('Имя участника:', participantName);
       
-      // Получаем токен подключения
-      const details = await getConnectionDetails(roomName, participantName);
-      console.log('Получены детали подключения:', details);
+      // Получаем персонализированный токен для интервью
+      const details = await getInterviewConnectionDetails(interviewId, participantName);
+      console.log('Получены детали подключения для интервью:', details);
+      console.log('Комната:', details.roomName);
+      console.log('Персонализированный промпт подготовлен');
+      
       setConnectionDetails(details);
       setState('connected');
     } catch (err) {
-      console.error('Ошибка подключения:', err);
-      setError(err instanceof Error ? err.message : 'Не удалось подключиться к конференции');
+      console.error('Ошибка подключения к интервью:', err);
+      setError(err instanceof Error ? err.message : 'Не удалось подключиться к интервью');
       setState('pre-join');
     }
   };
