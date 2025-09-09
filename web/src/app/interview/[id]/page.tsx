@@ -132,6 +132,35 @@ export default function InterviewPage() {
     }
   };
 
+  const refreshInterviewData = async () => {
+    try {
+      const token = localStorage.getItem('auth-token');
+      
+      const response = await fetch('/api/my-applications', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка при обновлении данных интервью');
+      }
+
+      const data = await response.json();
+      const updatedInterview = data.applications.find((app: any) => app.id === interviewId);
+      
+      if (updatedInterview) {
+        console.log('Обновлены данные интервью:', updatedInterview);
+        setInterview(updatedInterview);
+        if (updatedInterview.assessment) {
+          setAssessment(updatedInterview.assessment);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка обновления данных интервью:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -365,8 +394,40 @@ export default function InterviewPage() {
           </div>
         )}
         
+        {/* Status: Cancelled */}
+        {interview.status === 'CANCELLED' && (
+          <div className="max-w-3xl mx-auto text-center">
+            <div className="h-24 w-24 bg-gradient-to-br from-red-500 to-red-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl">
+              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h1 className="text-4xl font-bold text-vtb-text mb-4">
+              Интервью отменено
+            </h1>
+            <p className="text-xl text-vtb-text-secondary mb-8">
+              К сожалению, интервью на позицию <strong>{interview.job.title}</strong> было отменено.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <button
+                onClick={() => router.push('/my-applications')}
+                className="px-8 py-3 bg-vtb-surface-secondary border border-border text-vtb-text rounded-xl hover:bg-muted transition-colors"
+              >
+                Вернуться к заявкам
+              </button>
+              <button
+                onClick={() => router.push('/jobs')}
+                className="px-8 py-3 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white rounded-xl hover:shadow-lg transition-all"
+              >
+                Искать другие вакансии
+              </button>
+            </div>
+          </div>
+        )}
+
         {(() => {
-          if (interview.status !== 'SCHEDULED' && interview.status !== 'IN_PROGRESS' && interview.status !== 'COMPLETED') {
+          if (interview.status !== 'SCHEDULED' && interview.status !== 'IN_PROGRESS' && interview.status !== 'COMPLETED' && interview.status !== 'CANCELLED') {
             console.log('Неожиданный статус интервью:', interview.status);
             console.log('Ни один блок не рендерится!');
           }
@@ -387,9 +448,11 @@ export default function InterviewPage() {
             <VideoConference
               participantName={`${user.firstName} ${user.lastName}`}
               interviewId={interviewId}
-              onClose={() => {
+              onClose={async () => {
                 console.log('Закрываем видеоконференцию');
                 setShowVideoConference(false);
+                // Обновляем данные интервью после закрытия видеоконференции
+                await refreshInterviewData();
               }}
             />
           );

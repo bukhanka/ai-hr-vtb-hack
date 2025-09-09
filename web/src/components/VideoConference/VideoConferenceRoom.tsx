@@ -20,16 +20,24 @@ interface VideoConferenceRoomProps {
   connectionDetails: ConnectionDetails;
   userChoices: LocalUserChoices;
   onDisconnect: () => void;
+  interviewId?: string;
 }
 
 export function VideoConferenceRoom({
   connectionDetails,
   userChoices,
   onDisconnect,
+  interviewId,
 }: VideoConferenceRoomProps) {
   const [isConnecting, setIsConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEndConfirmation, setShowEndConfirmation] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [showAutoEndSuggestion, setShowAutoEndSuggestion] = useState(false);
   const roomRef = useRef<Room | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const roomOptions = useMemo((): RoomOptions => {
     const publishDefaults = {
@@ -57,6 +65,107 @@ export function VideoConferenceRoom({
     autoSubscribe: true,
   }), []);
 
+  // Функция для форматирования времени
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Функция завершения интервью
+  const handleCompleteInterview = async () => {
+    if (!interviewId) {
+      console.error('Interview ID не найден');
+      return;
+    }
+
+    try {
+      setIsCompleting(true);
+      const token = localStorage.getItem('auth-token');
+      
+      console.log('Завершаем интервью:', interviewId);
+      
+      const response = await fetch(`/api/interviews/${interviewId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        let errorMessage = errorData.error || 'Ошибка при завершении интервью';
+        
+        // Более понятные сообщения для пользователя
+        if (errorMessage.includes('уже завершено')) {
+          errorMessage = 'Интервью уже было завершено ранее. Обновляем страницу...';
+          // Через 2 секунды закрываем видеоконференцию для обновления данных
+          setTimeout(() => {
+            setShowEndConfirmation(false);
+            onDisconnect();
+          }, 2000);
+        } else if (errorMessage.includes('не найдено')) {
+          errorMessage = 'Интервью не найдено. Возможно, оно было удалено.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('Интервью успешно завершено:', result);
+
+      // Закрываем модальное окно и завершаем конференцию
+      setShowEndConfirmation(false);
+      onDisconnect();
+    } catch (error) {
+      console.error('Ошибка завершения интервью:', error);
+      setError(error instanceof Error ? error.message : 'Не удалось завершить интервью');
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  // Функция для простого отключения без завершения интервью
+  const handleDisconnectOnly = () => {
+    setShowEndConfirmation(false);
+    onDisconnect();
+  };
+
+  // Функция автоматического начала интервью при подключении к видеоконференции
+  const startInterviewIfNeeded = async () => {
+    if (!interviewId) {
+      console.log('Interview ID не найден - пропускаем автостарт');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('auth-token');
+      
+      console.log('Пытаемся автоматически начать интервью:', interviewId);
+      
+      const response = await fetch(`/api/interviews/${interviewId}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Интервью автоматически переведено в IN_PROGRESS:', result);
+      } else {
+        // Если интервью уже началось или завершено - не показываем ошибку
+        const errorData = await response.json();
+        console.log('Интервью уже началось или завершено:', errorData.error);
+      }
+    } catch (error) {
+      // Не показываем ошибку пользователю, просто логируем
+      console.warn('Не удалось автоматически начать интервью (не критично):', error);
+    }
+  };
+
   useEffect(() => {
     let isCleanedUp = false;
     
@@ -83,6 +192,10 @@ export function VideoConferenceRoom({
       console.log('Состояние подключения изменилось:', state);
       if (state === 'connected' && !isCleanedUp) {
         setIsConnecting(false);
+        // Запускаем таймер при подключении
+        setStartTime(new Date());
+        // Автоматически начинаем интервью
+        startInterviewIfNeeded();
       }
     });
 
@@ -150,8 +263,38 @@ export function VideoConferenceRoom({
       room.off(RoomEvent.Disconnected, handleDisconnected);
       room.disconnect();
       roomRef.current = null;
+      
+      // Очищаем таймер
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
   }, [connectionDetails, connectOptions, userChoices, onDisconnect, roomOptions]);
+
+  // Отдельный useEffect для таймера
+  useEffect(() => {
+    if (!startTime) return;
+
+    // Запускаем интервал для обновления времени каждую секунду
+    timerRef.current = setInterval(() => {
+      const now = new Date();
+      const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+      setElapsedTime(elapsed);
+
+      // Автопредложение завершения через 10 минут (600 секунд)
+      if (elapsed === 600 && !showAutoEndSuggestion && !showEndConfirmation) {
+        setShowAutoEndSuggestion(true);
+      }
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [startTime, showAutoEndSuggestion, showEndConfirmation]);
 
   if (error) {
     return (
@@ -202,14 +345,27 @@ export function VideoConferenceRoom({
     <div className="fixed inset-0 bg-background z-50" data-lk-theme="default">
       <RoomContext.Provider value={roomRef.current}>
         <div className="h-full relative">
-          {/* Header с кнопкой выхода */}
-          <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={onDisconnect}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-lg"
-            >
-              Завершить конференцию
-            </button>
+          {/* Header с таймером и кнопками */}
+          <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-center">
+            {/* Таймер */}
+            <div className="bg-black/50 text-white px-4 py-2 rounded-lg backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Время интервью: {formatTime(elapsedTime)}</span>
+              </div>
+            </div>
+
+            {/* Кнопки управления */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowEndConfirmation(true)}
+                className="px-4 py-2 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white rounded-lg hover:shadow-lg transition-all shadow-lg"
+              >
+                Завершить интервью
+              </button>
+            </div>
           </div>
           
           {/* Основной компонент видеоконференции */}
@@ -218,6 +374,88 @@ export function VideoConferenceRoom({
           />
         </div>
       </RoomContext.Provider>
+
+      {/* Модальное окно подтверждения завершения */}
+      {showEndConfirmation && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]">
+          <div className="bg-vtb-surface rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-border">
+            <div className="text-center">
+              <div className="h-16 w-16 bg-gradient-to-br from-vtb-primary to-vtb-secondary rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-vtb-text mb-2">
+                Завершить интервью?
+              </h3>
+              <p className="text-vtb-text-secondary mb-6">
+                Вы уверены, что хотите завершить интервью? После завершения вы получите результаты AI-анализа и больше не сможете продолжить собеседование.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDisconnectOnly}
+                  disabled={isCompleting}
+                  className="flex-1 px-4 py-3 bg-vtb-surface-secondary border border-border text-vtb-text rounded-xl hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleCompleteInterview}
+                  disabled={isCompleting}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isCompleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Завершаем...
+                    </>
+                  ) : (
+                    'Завершить интервью'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно автопредложения завершения */}
+      {showAutoEndSuggestion && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]">
+          <div className="bg-vtb-surface rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-border">
+            <div className="text-center">
+              <div className="h-16 w-16 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-vtb-text mb-2">
+                Интервью длится уже 10 минут
+              </h3>
+              <p className="text-vtb-text-secondary mb-6">
+                Возможно, пора завершить интервью и получить результаты? Вы можете продолжить или завершить сейчас.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAutoEndSuggestion(false)}
+                  className="flex-1 px-4 py-3 bg-vtb-surface-secondary border border-border text-vtb-text rounded-xl hover:bg-muted transition-colors"
+                >
+                  Продолжить
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAutoEndSuggestion(false);
+                    setShowEndConfirmation(true);
+                  }}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white rounded-xl hover:shadow-lg transition-all"
+                >
+                  Завершить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -68,26 +68,32 @@ export async function GET(
             createdAt: true,
           }
         },
-        assessment: {
+        resume: {
           select: {
             id: true,
-            overallScore: true,
-            technicalScore: true,
-            softSkillsScore: true,
-            communicationScore: true,
-            recommendation: true,
-            feedback: true,
-            strengths: true,
-            weaknesses: true,
-            notes: true,
-            createdAt: true,
+            fileName: true,
+            aiSummary: true,
+            skills: true,
+            experience: true,
+            education: true,
+          }
+        },
+        assessment: {
+          include: {
+            framework: {
+              select: {
+                name: true,
+                version: true
+              }
+            }
           }
         }
       },
       orderBy: [
+        { preInterviewScore: 'desc' }, // Сначала по скору соответствия резюме
         {
           assessment: {
-            overallScore: 'desc' // Сначала лучшие кандидаты
+            overallScore: 'desc' // Потом по результатам интервью
           }
         },
         {

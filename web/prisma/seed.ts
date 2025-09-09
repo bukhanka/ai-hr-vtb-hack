@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole, JobStatus } from '../src/generated/prisma';
 import { hashPassword } from '../src/lib/auth';
+import { seedAssessmentFrameworks } from './seeds/assessment-frameworks';
 
 const prisma = new PrismaClient();
 
@@ -236,6 +237,22 @@ async function main() {
 
   console.log('✅ Созданы резюме для соискателей');
 
+  // Создаем Assessment Frameworks
+  await seedAssessmentFrameworks(admin.id);
+
+  // Привязываем вакансии к фреймворку Tech Interview
+  const techFramework = await prisma.assessmentFramework.findFirst({
+    where: { name: 'Tech Interview', isActive: true }
+  });
+
+  if (techFramework) {
+    await prisma.job.updateMany({
+      where: { id: { in: [job1.id, job2.id] } },
+      data: { assessmentFrameworkId: techFramework.id }
+    });
+    console.log('✅ Привязаны технические вакансии к Tech Interview фреймворку');
+  }
+
   console.log(`
 🎉 База данных успешно заполнена!
 
@@ -259,6 +276,7 @@ async function main() {
 • 1 администратор
 • 3 активные вакансии
 • 5 резюме
+• 2 Assessment Frameworks (Tech Interview, Sales Interview)
   `);
 }
 

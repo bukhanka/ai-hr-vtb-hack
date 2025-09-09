@@ -119,7 +119,6 @@ export async function GET(
     const jobStats = await prisma.interview.findMany({
       where: {
         jobId: interview.jobId,
-        status: 'COMPLETED',
         assessment: {
           isNot: null
         }
@@ -134,6 +133,17 @@ export async function GET(
       }
     });
 
+    // Также получаем общую статистику по всем интервью (включая незавершенные)
+    const allJobInterviews = await prisma.interview.findMany({
+      where: {
+        jobId: interview.jobId,
+      },
+      select: {
+        status: true,
+        createdAt: true,
+      }
+    });
+
     const avgScore = jobStats.length > 0 
       ? jobStats.reduce((sum, int) => sum + (int.assessment?.overallScore || 0), 0) / jobStats.length
       : 0;
@@ -141,6 +151,12 @@ export async function GET(
     const recommendationStats = jobStats.reduce((acc, int) => {
       const rec = int.assessment?.recommendation || 'UNKNOWN';
       acc[rec] = (acc[rec] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Подсчитываем статистику по статусам
+    const statusStats = allJobInterviews.reduce((acc, int) => {
+      acc[int.status] = (acc[int.status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
@@ -164,7 +180,9 @@ export async function GET(
       },
       assessment: interview.assessment,
       stats: {
-        totalInterviews: jobStats.length,
+        totalInterviews: allJobInterviews.length,
+        completedInterviews: jobStats.length,
+        statusBreakdown: statusStats,
         averageScore: Math.round(avgScore * 10) / 10,
         recommendations: recommendationStats,
         candidateRank: interview.assessment 

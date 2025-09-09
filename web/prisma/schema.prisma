@@ -48,6 +48,7 @@ model User {
   interviews  Interview[]
   assessments Assessment[]
   resumes     Resume[]
+  createdFrameworks AssessmentFramework[] @relation("FrameworkCreator")
 
   @@map("users")
 }
@@ -63,6 +64,11 @@ model Job {
   status      JobStatus @default(DRAFT)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // Assessment Framework
+  assessmentFrameworkId String?
+  assessmentFramework   AssessmentFramework? @relation(fields: [assessmentFrameworkId], references: [id])
+  customWeights         Json?                // Кастомные веса для конкретной вакансии
 
   // Связи
   creatorId   String
@@ -100,6 +106,7 @@ model Resume {
   // Связи
   applicantId String
   applicant   User   @relation(fields: [applicantId], references: [id])
+  interviews  Interview[] // Интервью, где использовалось это резюме
 
   @@map("resumes")
 }
@@ -115,11 +122,17 @@ model Interview {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  // Resume matching
+  resumeId           String?  // Какое резюме использовалось для отклика
+  preInterviewScore  Float?   // Предварительный скор соответствия (0-100)
+  matchingAnalysis   Json?    // Детальный анализ соответствия резюме и вакансии
+
   // Связи
   jobId       String
   job         Job          @relation(fields: [jobId], references: [id])
   applicantId String
   applicant   User         @relation(fields: [applicantId], references: [id])
+  resume      Resume?      @relation(fields: [resumeId], references: [id])
   assessment  Assessment?
 
   @@map("interviews")
@@ -127,15 +140,36 @@ model Interview {
 
 model Assessment {
   id              String   @id @default(cuid())
-  overallScore    Float    // процент соответствия позиции
-  technicalScore  Float?
-  softSkillsScore Float?
-  communicationScore Float?
+  
+  // Связь с фреймворком оценки
+  frameworkId     String?
+  framework       AssessmentFramework? @relation(fields: [frameworkId], references: [id])
+  
+  // Динамические результаты по критериям
+  scores          Json     @default("{}") // {"technical": 85, "communication": 78, ...}
+  overallScore    Float    // Вычисленный общий балл
+  
+  // Результаты анализа
+  analysisResults Json?    // Полные результаты от Gemini
   recommendation  String   // "HIRE", "REJECT", "REQUIRES_CLARIFICATION"
+  
+  // Обратная связь
   feedback        String?  // обратная связь для кандидата
   strengths       String[] // сильные стороны
   weaknesses      String[] // слабые места
+  redFlags        String[] // красные флаги
   notes           String?
+  
+  // Мета-информация
+  analysisStatus  String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, FAILED
+  confidence      Float?   // Уверенность AI в оценке (0-100)
+  processingTime  Int?     // Время анализа в секундах
+  
+  // Совместимость с текущей системой
+  technicalScore     Float?
+  softSkillsScore    Float?
+  communicationScore Float?
+  
   createdAt       DateTime @default(now())
 
   // Связи
@@ -145,4 +179,34 @@ model Assessment {
   assessor    User      @relation(fields: [assessorId], references: [id])
 
   @@map("assessments")
+}
+
+model AssessmentFramework {
+  id          String   @id @default(cuid())
+  name        String   // "Tech Interview", "Sales Interview", "Leadership"
+  version     String   // "1.0", "2.1" для версионирования
+  description String?
+  isActive    Boolean  @default(true)
+  
+  // Конфигурация критериев и весов
+  criteria    Json     // Динамическая структура критериев
+  weights     Json     // Веса для каждого критерия
+  scoringMethod String @default("WEIGHTED_AVERAGE") // "WEIGHTED_AVERAGE", "MATRIX", "THRESHOLD"
+  
+  // Настройки анализа для Gemini
+  analysisConfig Json  // Конфиг для анализа (FPS, промпты и т.д.)
+  
+  // Настройки красных флагов
+  redFlagsConfig Json? // Конфигурация для выявления красных флагов
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Связи
+  creatorId   String
+  creator     User     @relation("FrameworkCreator", fields: [creatorId], references: [id])
+  jobs        Job[]    // Какие вакансии используют этот фреймворк
+  assessments Assessment[] // Все оценки по этому фреймворку
+
+  @@map("assessment_frameworks")
 }

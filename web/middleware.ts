@@ -39,13 +39,29 @@ const publicPaths = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Обрабатываем CORS для всех запросов
+  if (request.method === 'OPTIONS') {
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, Range',
+        'Access-Control-Expose-Headers': 'Content-Range, Accept-Ranges, Content-Length',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
   // Пропускаем статические файлы и API маршруты Next.js
   if (
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/favicon.ico') ||
     pathname.startsWith('/public/')
   ) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    return response;
   }
 
   // Проверяем является ли маршрут публичным
@@ -54,7 +70,11 @@ export async function middleware(request: NextRequest) {
   );
 
   if (isPublicPath) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
+    return response;
   }
 
   // Проверяем является ли маршрут защищенным
@@ -63,7 +83,9 @@ export async function middleware(request: NextRequest) {
   );
 
   if (!isProtectedPath) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    return response;
   }
 
   // Получаем токен из запроса
@@ -130,11 +152,20 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-user-role', payload.role);
   requestHeaders.set('x-user-name', `${payload.firstName} ${payload.lastName}`);
 
-  return NextResponse.next({
+  // Создаем ответ с CORS заголовками
+  const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   });
+
+  // Добавляем CORS заголовки для всех ответов
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
+  response.headers.set('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+
+  return response;
 }
 
 export const config = {

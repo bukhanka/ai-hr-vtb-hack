@@ -49,6 +49,21 @@ export const EyeIcon = ({ className = "w-6 h-6", size }: IconProps) => (
   </svg>
 )
 
+export const VideoIcon = ({ className = "w-6 h-6", size }: IconProps) => (
+  <svg 
+    className={className} 
+    width={size} 
+    height={size} 
+    fill="none" 
+    strokeWidth={2} 
+    stroke="currentColor" 
+    viewBox="0 0 24 24"
+  >
+    <path d="M16 10l-6-4v8l6-4z"/>
+    <rect x="2" y="6" width="20" height="12" rx="2"/>
+  </svg>
+)
+
 export const XMarkIcon = ({ className = "w-6 h-6", size }: IconProps) => (
   <svg 
     className={className} 

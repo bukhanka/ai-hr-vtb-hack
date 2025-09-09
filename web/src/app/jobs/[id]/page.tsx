@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { BuildingIcon, ClockIcon, UserIcon, SparklesIcon } from '../../../components/Icons';
 import { ThemeToggle } from '../../../components/ThemeToggle';
+import ResumeSelector from '../../../components/ResumeSelector';
 import Link from 'next/link';
 
 interface Job {
@@ -26,6 +27,10 @@ export default function JobDetailPage() {
   const [error, setError] = useState('');
   const [applicationSuccess, setApplicationSuccess] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+  const [selectedResumeData, setSelectedResumeData] = useState<any>(null);
+  const [showResumeSelector, setShowResumeSelector] = useState(false);
+  const [coverLetter, setCoverLetter] = useState('');
   const router = useRouter();
   const params = useParams();
   const jobId = params.id as string;
@@ -95,9 +100,22 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
-  const handleApply = async () => {
+  const handleApplyClick = () => {
     if (!user || user.role !== 'APPLICANT') {
       setError('Откликаться на вакансии могут только соискатели');
+      return;
+    }
+    setShowResumeSelector(true);
+  };
+
+  const handleResumeSelect = (resumeId: string, resumeData: any) => {
+    setSelectedResumeId(resumeId);
+    setSelectedResumeData(resumeData);
+  };
+
+  const handleFinalApply = async () => {
+    if (!selectedResumeId) {
+      setError('Необходимо выбрать резюме для отклика');
       return;
     }
 
@@ -112,6 +130,10 @@ export default function JobDetailPage() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          resumeId: selectedResumeId,
+          coverLetter: coverLetter.trim() || undefined
+        })
       });
 
       const data = await response.json();
@@ -121,6 +143,7 @@ export default function JobDetailPage() {
       }
 
       setApplicationSuccess(true);
+      setShowResumeSelector(false);
     } catch (error) {
       console.error('Ошибка отклика:', error);
       setError(error instanceof Error ? error.message : 'Ошибка при отклике');
@@ -301,21 +324,12 @@ export default function JobDetailPage() {
                 </div>
                 {!applicationSuccess && (
                   <button
-                    onClick={handleApply}
+                    onClick={handleApplyClick}
                     disabled={applying}
                     className="px-8 py-3 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white font-semibold rounded-xl hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-vtb-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 disabled:transform-none flex items-center gap-2"
                   >
-                    {applying ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Отправка...
-                      </>
-                    ) : (
-                      <>
-                        <SparklesIcon className="w-5 h-5" />
-                        Откликнуться
-                      </>
-                    )}
+                    <SparklesIcon className="w-5 h-5" />
+                    Откликнуться
                   </button>
                 )}
               </div>
@@ -414,6 +428,91 @@ export default function JobDetailPage() {
             </div>
           </div>
         </main>
+      )}
+
+      {/* Resume Selection Modal */}
+      {showResumeSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Выбор резюме для отклика
+              </h2>
+              <button
+                onClick={() => setShowResumeSelector(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <ResumeSelector
+                jobId={jobId}
+                onResumeSelect={handleResumeSelect}
+                className="mb-6"
+              />
+
+              {selectedResumeId && (
+                <div className="space-y-4">
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Сопроводительное письмо (опционально)
+                    </label>
+                    <textarea
+                      value={coverLetter}
+                      onChange={(e) => setCoverLetter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      rows={4}
+                      placeholder="Расскажите, почему вы подходите для этой позиции..."
+                    />
+                  </div>
+
+                  {selectedResumeData && (
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">
+                        Выбранное резюме: {selectedResumeData.fileName}
+                      </h4>
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        Соответствие вакансии: <span className="font-semibold text-blue-600">{selectedResumeData.matchScore}%</span>
+                      </div>
+                      {selectedResumeData.reasoningNotes && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+                          {selectedResumeData.reasoningNotes}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-4 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowResumeSelector(false)}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+              >
+                Отменить
+              </button>
+              <button
+                onClick={handleFinalApply}
+                disabled={!selectedResumeId || applying}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {applying ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Отправка...
+                  </>
+                ) : (
+                  'Отправить отклик'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

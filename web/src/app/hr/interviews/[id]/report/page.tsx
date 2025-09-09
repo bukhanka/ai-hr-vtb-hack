@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ThemeToggle } from '../../../../../components/ThemeToggle';
 import { BuildingIcon, UserIcon, DocumentIcon, ChartBarIcon, CalendarIcon, ClockIcon } from '../../../../../components/Icons';
+import VideoPlayer from '../../../../../components/VideoPlayer';
+import { AssessmentDisplay } from '../../../../../components/AssessmentDisplay';
 import Link from 'next/link';
 
 interface InterviewReport {
@@ -68,6 +70,8 @@ interface InterviewReport {
   };
   stats: {
     totalInterviews: number;
+    completedInterviews: number;
+    statusBreakdown: Record<string, number>;
     averageScore: number;
     recommendations: Record<string, number>;
     candidateRank?: number;
@@ -412,34 +416,71 @@ export default function InterviewReportPage() {
                 </div>
                 
                 <div className="flex justify-between">
+                  <span className="text-vtb-text-secondary">Завершено:</span>
+                  <span className="font-medium text-vtb-text">{report.stats.completedInterviews}</span>
+                </div>
+                
+                <div className="flex justify-between">
                   <span className="text-vtb-text-secondary">Средний балл:</span>
-                  <span className="font-medium text-vtb-text">{report.stats.averageScore}%</span>
+                  <span className="font-medium text-vtb-text">
+                    {report.stats.completedInterviews > 0 ? `${report.stats.averageScore}%` : '—'}
+                  </span>
                 </div>
                 
                 {report.stats.candidateRank && (
                   <div className="flex justify-between">
                     <span className="text-vtb-text-secondary">Позиция кандидата:</span>
                     <span className="font-medium text-vtb-text">
-                      {report.stats.candidateRank} из {report.stats.totalInterviews}
+                      {report.stats.candidateRank} из {report.stats.completedInterviews}
                     </span>
                   </div>
                 )}
 
-                <div className="pt-3 border-t border-border">
-                  <p className="text-sm font-medium text-vtb-text mb-2">Рекомендации:</p>
-                  <div className="space-y-2">
-                    {Object.entries(report.stats.recommendations).map(([rec, count]) => (
-                      <div key={rec} className="flex justify-between text-sm">
-                        <span className="text-vtb-text-secondary">
-                          {getRecommendationText(rec)}:
-                        </span>
-                        <span className="font-medium">{count}</span>
-                      </div>
-                    ))}
+                {/* Status Breakdown */}
+                {Object.keys(report.stats.statusBreakdown).length > 0 && (
+                  <div className="pt-3 border-t border-border">
+                    <p className="text-sm font-medium text-vtb-text mb-2">По статусам:</p>
+                    <div className="space-y-2">
+                      {Object.entries(report.stats.statusBreakdown).map(([status, count]) => (
+                        <div key={status} className="flex justify-between text-sm">
+                          <span className="text-vtb-text-secondary">
+                            {status === 'SCHEDULED' ? 'Запланировано' :
+                             status === 'IN_PROGRESS' ? 'Идет интервью' :
+                             status === 'COMPLETED' ? 'Завершено' :
+                             status === 'CANCELLED' ? 'Отменено' : status}:
+                          </span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* Recommendations */}
+                {Object.keys(report.stats.recommendations).length > 0 && (
+                  <div className="pt-3 border-t border-border">
+                    <p className="text-sm font-medium text-vtb-text mb-2">Рекомендации:</p>
+                    <div className="space-y-2">
+                      {Object.entries(report.stats.recommendations).map(([rec, count]) => (
+                        <div key={rec} className="flex justify-between text-sm">
+                          <span className="text-vtb-text-secondary">
+                            {getRecommendationText(rec)}:
+                          </span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Video Player or Interview Info */}
+            <VideoPlayer
+              interviewId={report.interview.id}
+              candidateName={`${report.applicant.firstName} ${report.applicant.lastName}`}
+              jobTitle={report.job.title}
+            />
           </div>
 
           {/* Right Column - Assessment Results */}
@@ -449,129 +490,13 @@ export default function InterviewReportPage() {
               <>
                 {/* Overall Assessment */}
                 <div className="bg-vtb-surface rounded-2xl p-8 shadow-lg border border-border">
-                  <h3 className="text-2xl font-bold text-vtb-text mb-6">Результаты AI-анализа</h3>
+                  <h3 className="text-2xl font-bold text-vtb-text mb-6">Полные результаты AI-анализа</h3>
                   
-                  {/* Score Breakdown */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-vtb-text">Общий балл</span>
-                        <span className="text-xl font-bold text-vtb-primary">
-                          {Math.round(report.assessment.overallScore)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3">
-                        <div
-                          className="bg-gradient-to-r from-vtb-primary to-vtb-secondary h-3 rounded-full"
-                          style={{ width: `${report.assessment.overallScore}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {report.assessment.technicalScore && (
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium text-vtb-text">Технические навыки</span>
-                          <span className="text-lg font-semibold text-vtb-text">
-                            {Math.round(report.assessment.technicalScore)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-500 h-2 rounded-full"
-                            style={{ width: `${report.assessment.technicalScore}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {report.assessment.softSkillsScore && (
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium text-vtb-text">Soft Skills</span>
-                          <span className="text-lg font-semibold text-vtb-text">
-                            {Math.round(report.assessment.softSkillsScore)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-green-500 h-2 rounded-full"
-                            style={{ width: `${report.assessment.softSkillsScore}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {report.assessment.communicationScore && (
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium text-vtb-text">Коммуникация</span>
-                          <span className="text-lg font-semibold text-vtb-text">
-                            {Math.round(report.assessment.communicationScore)}%
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-purple-500 h-2 rounded-full"
-                            style={{ width: `${report.assessment.communicationScore}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Feedback */}
-                  {report.assessment.feedback && (
-                    <div className="mb-6">
-                      <h4 className="font-semibold text-vtb-text mb-3">Обратная связь</h4>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-vtb-text-secondary leading-relaxed">
-                          {report.assessment.feedback}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Strengths & Weaknesses */}
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="font-semibold text-green-600 mb-3 flex items-center gap-2">
-                        <span>✅</span> Сильные стороны
-                      </h4>
-                      <ul className="space-y-2">
-                        {report.assessment.strengths.map((strength, index) => (
-                          <li key={index} className="text-sm text-vtb-text-secondary flex items-start gap-2">
-                            <span className="text-green-500 mt-1">•</span>
-                            {strength}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h4 className="font-semibold text-orange-600 mb-3 flex items-center gap-2">
-                        <span>⚠️</span> Области для развития
-                      </h4>
-                      <ul className="space-y-2">
-                        {report.assessment.weaknesses.map((weakness, index) => (
-                          <li key={index} className="text-sm text-vtb-text-secondary flex items-start gap-2">
-                            <span className="text-orange-500 mt-1">•</span>
-                            {weakness}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  {report.assessment.notes && (
-                    <div className="mt-6 pt-6 border-t border-border">
-                      <h4 className="font-semibold text-vtb-text mb-3">Дополнительные заметки</h4>
-                      <p className="text-sm text-vtb-text-secondary bg-gray-50 p-4 rounded-lg">
-                        {report.assessment.notes}
-                      </p>
-                    </div>
-                  )}
+                  <AssessmentDisplay 
+                    assessment={report.assessment} 
+                    compact={false}
+                    className="border-0 pt-0"
+                  />
 
                   <div className="mt-6 pt-6 border-t border-border text-sm text-vtb-text-secondary">
                     <p>

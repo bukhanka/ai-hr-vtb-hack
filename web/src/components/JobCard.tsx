@@ -65,7 +65,7 @@ export function JobCard({
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
-  const href = variant === 'hr' ? `/hr/jobs/${job.id}` : `/jobs/${job.id}`;
+  const href = variant === 'hr' ? `/hr/jobs/${job.id}/applications` : `/jobs/${job.id}`;
 
   return (
     <Link href={href} className="block group">
@@ -152,7 +152,7 @@ export function JobCard({
         <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <div className="flex items-center justify-between">
             <span className="text-sm text-vtb-primary font-medium">
-              {variant === 'hr' ? 'Управлять вакансией' : 'Подробнее'}
+              {variant === 'hr' ? 'Посмотреть заявки' : 'Подробнее'}
             </span>
             <svg className="w-5 h-5 text-vtb-primary transform transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

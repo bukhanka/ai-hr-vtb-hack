@@ -100,6 +100,7 @@ export function VideoConference({ participantName, interviewId, onClose }: Video
         connectionDetails={connectionDetails}
         userChoices={userChoices}
         onDisconnect={handleDisconnect}
+        interviewId={interviewId}
       />
     );
   }
