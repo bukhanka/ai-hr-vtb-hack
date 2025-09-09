@@ -73,9 +73,27 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
     },
   ];
 
+  // Дополнительные ссылки только для ADMIN
+  const adminLinks = [
+    {
+      href: '/admin/assessment-frameworks',
+      label: 'Фреймворки оценки',
+      icon: BarChartIcon,
+    },
+    {
+      href: '/admin/prompt-simulations',
+      label: 'Симуляция промптов',
+      icon: BrainIcon,
+    },
+  ];
+
   const getNavigationLinks = () => {
     // Используем типизированные проверки ролей
     if (isHR()) {
+      // Если пользователь ADMIN, добавляем административные ссылки
+      if (user.role === 'ADMIN') {
+        return [...hrLinks, ...adminLinks];
+      }
       return hrLinks;
     }
     return applicantLinks;

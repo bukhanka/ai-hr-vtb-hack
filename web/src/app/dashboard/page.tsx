@@ -198,13 +198,20 @@ export default function DashboardPage() {
                 <TargetIcon className="w-6 h-6 text-vtb-primary" />
                 <span>Функции HR-специалиста</span>
               </h3>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <Link href="/hr/jobs/create" className="bg-background rounded-xl p-6 border border-border hover:shadow-lg transition-all duration-200 cursor-pointer group hover:border-vtb-primary">
                   <div className="h-12 w-12 bg-gradient-to-br from-vtb-primary to-vtb-secondary rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200">
                     <PlusIcon className="w-6 h-6 text-white" />
                   </div>
                   <h4 className="font-semibold text-vtb-text mb-2">Создание вакансий</h4>
                   <p className="text-sm text-vtb-text-secondary">Добавление новых позиций и требований</p>
+                </Link>
+                <Link href="/hr/jobs/upload" className="bg-background rounded-xl p-6 border border-border hover:shadow-lg transition-all duration-200 cursor-pointer group hover:border-vtb-primary">
+                  <div className="h-12 w-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200">
+                    <DocumentIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <h4 className="font-semibold text-vtb-text mb-2">Загрузка документа</h4>
+                  <p className="text-sm text-vtb-text-secondary">ИИ извлечет данные из документа вакансии</p>
                 </Link>
                 <Link href="/hr/jobs" className="bg-background rounded-xl p-6 border border-border hover:shadow-lg transition-all duration-200 cursor-pointer group hover:border-vtb-primary">
                   <div className="h-12 w-12 bg-gradient-to-br from-vtb-secondary to-vtb-accent rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-200">

@@ -49,6 +49,7 @@ model User {
   assessments Assessment[]
   resumes     Resume[]
   createdFrameworks AssessmentFramework[] @relation("FrameworkCreator")
+  promptSimulations PromptSimulation[]
 
   @@map("users")
 }
@@ -65,6 +66,15 @@ model Job {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // AI Document Processing Fields
+  rawJobDocument     String?   // Исходный текст из загруженного документа
+  fileName           String?   // Имя загруженного файла  
+  filePath           String?   // Путь к файлу
+  processingStatus   String    @default("MANUAL") // MANUAL, PENDING, PROCESSING, COMPLETED, FAILED
+  parsedJobData      Json?     // Структурированные данные от AI
+  aiSummary          String?   // Краткое описание от AI
+  analyzedAt         DateTime? // Когда был проведен AI анализ
+
   // Assessment Framework
   assessmentFrameworkId String?
   assessmentFramework   AssessmentFramework? @relation(fields: [assessmentFrameworkId], references: [id])
@@ -74,6 +84,7 @@ model Job {
   creatorId   String
   creator     User        @relation("JobCreator", fields: [creatorId], references: [id])
   interviews  Interview[]
+  promptSimulations PromptSimulation[]
 
   @@map("jobs")
 }
@@ -107,6 +118,7 @@ model Resume {
   applicantId String
   applicant   User   @relation(fields: [applicantId], references: [id])
   interviews  Interview[] // Интервью, где использовалось это резюме
+  promptSimulations PromptSimulation[]
 
   @@map("resumes")
 }
@@ -209,4 +221,35 @@ model AssessmentFramework {
   assessments Assessment[] // Все оценки по этому фреймворку
 
   @@map("assessment_frameworks")
+}
+
+model PromptSimulation {
+  id          String   @id @default(cuid())
+  name        String   // "Test HR Prompt v2.1"
+  
+  // Настройки симуляции
+  hrPrompt    String   // Тестируемый промпт для HR
+  
+  // Исходные данные  
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id])
+  resumeId    String  
+  resume      Resume   @relation(fields: [resumeId], references: [id])
+  
+  // Результаты симуляции
+  dialogue    Json?    // Сгенерированный диалог
+  analysis    Json?    // Анализ и рекомендации
+  score       Float?   // Общая оценка промпта (0-100)
+  
+  // Статус
+  status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  // Создатель
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id])
+
+  @@map("prompt_simulations")
 }

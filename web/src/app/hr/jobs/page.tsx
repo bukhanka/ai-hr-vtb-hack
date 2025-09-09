@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { JobCard } from '../../../components/JobCard';
 import { JobSearch, JobFilters } from '../../../components/JobSearch';
-import { BuildingIcon, PlusIcon, BarChartIcon } from '../../../components/Icons';
+import { BuildingIcon, PlusIcon, BarChartIcon, DocumentIcon } from '../../../components/Icons';
 import Link from 'next/link';
 
 interface Job {
@@ -271,13 +271,22 @@ export default function HRJobsPage() {
               Управляйте вакансиями и просматривайте отклики кандидатов
             </p>
           </div>
-          <Link
-            href="/hr/jobs/create"
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white font-semibold rounded-xl hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Создать вакансию
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/hr/jobs/upload"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-vtb-secondary to-vtb-accent text-white font-semibold rounded-xl hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <DocumentIcon className="w-5 h-5" />
+              Загрузить документ
+            </Link>
+            <Link
+              href="/hr/jobs/create"
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-vtb-primary to-vtb-secondary text-white font-semibold rounded-xl hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Создать вакансию
+            </Link>
+          </div>
         </div>
 
         {/* Search and Filters */}
