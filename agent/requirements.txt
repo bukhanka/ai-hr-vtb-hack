@@ -6,3 +6,4 @@ livekit-plugins-bithuman
 livekit-plugins-silero
 livekit-plugins-deepgram
 livekit
+livekit-plugins-turn-detector

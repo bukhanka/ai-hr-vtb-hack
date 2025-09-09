@@ -17,6 +17,7 @@ from livekit.plugins import (
     deepgram,
 )
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from livekit import rtc
 
 load_dotenv()
 
@@ -180,9 +181,9 @@ async def entrypoint(ctx: JobContext):
         room_closed_event = asyncio.Event()
         current_session = None  # Store session reference for cleanup
         
-        # Функция для начала записи конкретного участника
+        # Функция для начала записи видео пользователя + аудио всей комнаты
         async def start_user_recording(participant_identity: str):
-            """Запускает запись видео для конкретного участника"""
+            """Запускает запись видео пользователя + аудио всей комнаты"""
             try:
                 if not gcp_credentials or not lkapi:
                     logger.warning("⚠️ Recording not available - missing credentials or API client")
@@ -203,14 +204,62 @@ async def entrypoint(ctx: JobContext):
                     logger.warning("⚠️ Interview ID still not found in metadata after waiting, cannot start recording")
                     return
                 
-                logger.info(f"🎬 Starting recording for interview: {interview_id}")
+                logger.info(f"🎬 Starting mixed recording for interview: {interview_id}")
+                
+                # Ждем немного чтобы треки были опубликованы
+                await asyncio.sleep(3)
+                
+                # Собираем нужные треки
+                video_track_id = None
+                audio_track_ids = []
+                
+                # Ищем видео трек пользователя
+                user_participant = None
+                for participant in ctx.room.remote_participants.values():
+                    if participant.identity == participant_identity:
+                        user_participant = participant
+                        break
+                
+                if user_participant:
+                    # Получаем видео трек пользователя
+                    for track_publication in user_participant.track_publications.values():
+                        if track_publication.track and track_publication.track.kind == rtc.TrackKind.KIND_VIDEO:
+                            video_track_id = track_publication.sid
+                            logger.info(f"📹 Found user video track: {video_track_id}")
+                            break
+                
+                # Собираем все аудио треки в комнате (пользователи + агент)
+                all_participants = list(ctx.room.remote_participants.values())
+                if ctx.room.local_participant:
+                    all_participants.append(ctx.room.local_participant)
+                
+                for participant in all_participants:
+                    for track_publication in participant.track_publications.values():
+                        if track_publication.track and track_publication.track.kind == rtc.TrackKind.KIND_AUDIO:
+                            audio_track_ids.append(track_publication.sid)
+                            logger.info(f"🎤 Found audio track from {participant.identity}: {track_publication.sid}")
+                
+                if not video_track_id:
+                    logger.warning("⚠️ No video track found for user, falling back to standard recording")
+                    await start_participant_fallback_recording(participant_identity)
+                    return
+                
+                if not audio_track_ids:
+                    logger.warning("⚠️ No audio tracks found in the room, falling back to standard recording")
+                    await start_participant_fallback_recording(participant_identity)
+                    return
                 
                 # Используем interview ID для имени файла
                 video_filename = f"recordings/interview_{interview_id}.mp4"
                 
-                req = api.ParticipantEgressRequest(
+                # Используем RoomCompositeEgressRequest для записи всей комнаты
+                # Это захватит аудио всех участников + видео всех (но агент не имеет видео)
+                # Результат: видео пользователя + аудио всех участников
+                req = api.RoomCompositeEgressRequest(
                     room_name=ctx.room.name,
-                    identity=participant_identity,  # Identity пользователя
+                    layout="speaker-dark",  # Layout который показывает активного спикера (пользователя)
+                    audio_only=False,
+                    video_only=False,
                     file_outputs=[api.EncodedFileOutput(
                         file_type=api.EncodedFileType.MP4,
                         filepath=video_filename,
@@ -222,15 +271,63 @@ async def entrypoint(ctx: JobContext):
                 )
                 
                 # Start recording
-                recording_response = await lkapi.egress.start_participant_egress(req)
-                logger.info(f"🎥 Interview {interview_id} recording started: {recording_response.egress_id}")
-                logger.info(f"📁 Video will be saved as: {video_filename}")
+                recording_response = await lkapi.egress.start_room_composite_egress(req)
+                logger.info(f"🎥 Mixed recording started for interview {interview_id}: {recording_response.egress_id}")
+                logger.info(f"📁 Video (user) + Audio (all): {video_filename}")
+                logger.info(f"📊 Recording tracks - Video: {video_track_id}, Audio tracks: {len(audio_track_ids)}")
                 
                 global global_recording_id
                 global_recording_id = recording_response.egress_id
                 
             except Exception as e:
-                logger.error(f"❌ Error starting user recording for {participant_identity}: {e}")
+                logger.error(f"❌ Error starting mixed recording for {participant_identity}: {e}")
+                # Fallback к обычной записи участника
+                logger.info("🔄 Falling back to standard participant recording...")
+                await start_participant_fallback_recording(participant_identity)
+        
+        # Fallback функция для обычной записи участника (исходный код)
+        async def start_participant_fallback_recording(participant_identity: str):
+            """Fallback к текущему методу записи"""
+            try:
+                if not gcp_credentials or not lkapi:
+                    logger.warning("⚠️ Recording not available - missing credentials or API client")
+                    return
+                
+                metadata = get_participant_metadata(ctx.room)
+                interview_id = metadata.get('interviewId')
+                
+                if not interview_id:
+                    await asyncio.sleep(2)
+                    metadata = get_participant_metadata(ctx.room)
+                    interview_id = metadata.get('interviewId')
+                
+                if not interview_id:
+                    logger.warning("⚠️ Interview ID not found for fallback recording")
+                    return
+                
+                video_filename = f"recordings/interview_{interview_id}_fallback.mp4"
+                
+                req = api.ParticipantEgressRequest(
+                    room_name=ctx.room.name,
+                    identity=participant_identity,
+                    file_outputs=[api.EncodedFileOutput(
+                        file_type=api.EncodedFileType.MP4,
+                        filepath=video_filename,
+                        gcp=api.GCPUpload(
+                            credentials=gcp_credentials,
+                            bucket="ailang",
+                        ),
+                    )],
+                )
+                
+                recording_response = await lkapi.egress.start_participant_egress(req)
+                logger.info(f"🎥 Fallback recording started: {recording_response.egress_id}")
+                
+                global global_recording_id
+                global_recording_id = recording_response.egress_id
+                
+            except Exception as e:
+                logger.error(f"❌ Error in fallback recording: {e}")
         
         # Обработчик подключения участников
         @ctx.room.on("participant_connected")
