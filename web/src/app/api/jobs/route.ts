@@ -1,3 +1,6 @@
+// Принудительно используем Node.js Runtime вместо Edge Runtime
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { getTokenFromRequest, verifyToken, isHR } from '../../../lib/auth';

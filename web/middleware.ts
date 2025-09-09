@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from './src/lib/auth';
 
+// Принудительно используем Node.js Runtime вместо Edge Runtime
+export const runtime = 'nodejs';
+
 // Определяем защищенные маршруты
 const protectedPaths = [
   '/dashboard',
@@ -150,7 +153,9 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-user-id', payload.userId);
   requestHeaders.set('x-user-email', payload.email);
   requestHeaders.set('x-user-role', payload.role);
-  requestHeaders.set('x-user-name', `${payload.firstName} ${payload.lastName}`);
+  // Кодируем имя в base64 для избежания проблем с кодировкой
+  const userName = Buffer.from(`${payload.firstName} ${payload.lastName}`, 'utf8').toString('base64');
+  requestHeaders.set('x-user-name', userName);
 
   // Создаем ответ с CORS заголовками
   const response = NextResponse.next({
