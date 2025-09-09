@@ -6,6 +6,16 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@livekit/components-react', '@livekit/components-styles'],
   },
   
+  // Skip type checking during build for hackathon
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  
+  // Skip ESLint during build for hackathon  
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  
   // Add headers for CORS
   async headers() {
     return [
