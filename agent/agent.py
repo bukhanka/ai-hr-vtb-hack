@@ -144,28 +144,76 @@ async def entrypoint(ctx: JobContext):
         global_room_name = ctx.room.name
         logger.info(f"🚀 Starting session for room: {global_room_name}")
         
-        # Set up audio recording with Google Cloud Storage
+        # Initialize LiveKit API client for participant recording
         try:
-            # Get GCP credentials from credentials file
+            # Get GCP credentials from environment variable or fallback to local file
             gcp_credentials = None
-            credentials_path = 'creds/googlecreadofmine.json'
             
-            if os.path.exists(credentials_path):
+            # Сначала пробуем переменную окружения GOOGLE_APPLICATION_CREDENTIALS
+            credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+            if not credentials_path:
+                # Fallback на относительный путь
+                credentials_path = 'creds/googlecreadofmine.json'
+            
+            if credentials_path and os.path.exists(credentials_path):
                 with open(credentials_path, 'r') as f:
                     gcp_credentials = f.read()
+                logger.info(f"✅ GCP credentials loaded from: {credentials_path}")
+            else:
+                logger.warning(f"⚠️ GCP credentials file not found at: {credentials_path}")
             
             if gcp_credentials:
                 # Initialize LiveKit API client
                 lkapi = api.LiveKitAPI()
                 global_lkapi = lkapi  # Сохраняем в глобальной переменной
+                logger.info("✅ LiveKit API client initialized for participant recording")
+            else:
+                logger.warning("⚠️ Recording disabled - no valid GCP credentials found")
                 
-                # Set up recording request
-                req = api.RoomCompositeEgressRequest(
+        except Exception as e:
+            logger.error(f"❌ Error initializing recording: {e}")
+        
+        await ctx.connect()
+        logger.info("🔌 Connected to room successfully")
+        
+        # Set up room disconnection handler
+        room_closed_event = asyncio.Event()
+        current_session = None  # Store session reference for cleanup
+        
+        # Функция для начала записи конкретного участника
+        async def start_user_recording(participant_identity: str):
+            """Запускает запись видео для конкретного участника"""
+            try:
+                if not gcp_credentials or not lkapi:
+                    logger.warning("⚠️ Recording not available - missing credentials or API client")
+                    return
+                
+                # Получаем interview ID из метаданных
+                metadata = get_participant_metadata(ctx.room)
+                interview_id = metadata.get('interviewId')
+                
+                # Если interview ID не найден, ждем немного и пробуем еще раз
+                if not interview_id:
+                    logger.info("⏳ Interview ID not found, waiting for metadata...")
+                    await asyncio.sleep(2)
+                    metadata = get_participant_metadata(ctx.room)
+                    interview_id = metadata.get('interviewId')
+                
+                if not interview_id:
+                    logger.warning("⚠️ Interview ID still not found in metadata after waiting, cannot start recording")
+                    return
+                
+                logger.info(f"🎬 Starting recording for interview: {interview_id}")
+                
+                # Используем interview ID для имени файла
+                video_filename = f"recordings/interview_{interview_id}.mp4"
+                
+                req = api.ParticipantEgressRequest(
                     room_name=ctx.room.name,
-                    audio_only=True,  # Record only audio
+                    identity=participant_identity,  # Identity пользователя
                     file_outputs=[api.EncodedFileOutput(
-                        file_type=api.EncodedFileType.OGG,
-                        filepath=f"recordings/{ctx.room.name}.ogg",
+                        file_type=api.EncodedFileType.MP4,
+                        filepath=video_filename,
                         gcp=api.GCPUpload(
                             credentials=gcp_credentials,
                             bucket="ailang",
@@ -174,21 +222,28 @@ async def entrypoint(ctx: JobContext):
                 )
                 
                 # Start recording
-                recording_response = await lkapi.egress.start_room_composite_egress(req)
-                logger.info(f"🎙️ Recording started successfully: {recording_response.egress_id}")
-                global_recording_id = recording_response.egress_id
-            else:
-                logger.warning("⚠️ GCP credentials file not found, recording disabled")
+                recording_response = await lkapi.egress.start_participant_egress(req)
+                logger.info(f"🎥 Interview {interview_id} recording started: {recording_response.egress_id}")
+                logger.info(f"📁 Video will be saved as: {video_filename}")
                 
-        except Exception as e:
-            logger.error(f"❌ Error starting recording: {e}")
+                global global_recording_id
+                global_recording_id = recording_response.egress_id
+                
+            except Exception as e:
+                logger.error(f"❌ Error starting user recording for {participant_identity}: {e}")
         
-        await ctx.connect()
-        logger.info("🔌 Connected to room successfully")
-        
-        # Set up room disconnection handler
-        room_closed_event = asyncio.Event()
-        current_session = None  # Store session reference for cleanup
+        # Обработчик подключения участников
+        @ctx.room.on("participant_connected")
+        def on_participant_connected(participant):
+            """Обработчик подключения участника"""
+            logger.info(f"👤 Participant connected: {participant.identity}")
+            
+            # Проверяем что это не агент (агент обычно подключается первым)
+            # Можно использовать разные способы определения пользователя:
+            if participant.identity != "agent" and not participant.identity.startswith("AI"):
+                logger.info(f"📹 Starting recording for user: {participant.identity}")
+                # Запускаем запись для этого пользователя
+                asyncio.create_task(start_user_recording(participant.identity))
         
         @ctx.room.on("disconnected")
         def on_room_disconnected():
@@ -225,6 +280,13 @@ async def entrypoint(ctx: JobContext):
                 
                 asyncio.create_task(immediate_cleanup())
                 room_closed_event.set()
+        
+        # Проверяем есть ли уже подключенные пользователи (кроме агента)
+        for participant in ctx.room.remote_participants.values():
+            if participant.identity != "agent" and not participant.identity.startswith("AI"):
+                logger.info(f"📹 Starting recording for existing user: {participant.identity}")
+                await start_user_recording(participant.identity)
+                break  # Записываем только первого найденного пользователя
         
         # Получаем метаданные участника для настройки агента
         metadata = get_participant_metadata(ctx.room)
